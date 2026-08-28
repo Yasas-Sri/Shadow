@@ -24,7 +24,9 @@ explicit human approval.
   that reverses the change, say so loudly and stop.
 - **The shadow dry-run is mandatory.** Report a SAFE / SAFE-WITH-FIX / UNSAFE verdict
   with concrete numbers (rows affected, violations found, estimated duration/locking).
-- **Stop for approval before production.** State plainly what will run, how many rows it
+- **Stop for approval before production.** The only tool that writes to production is
+  `apply_migration`, and it is approval-gated — calling it pauses for a human who sees the
+  exact SQL, the row count, and the rollback. State plainly what will run, how many rows it
   touches, and that it is irreversible. Wait for the human.
 - **Never leak secrets or full PII.** Show row counts and masked samples, never DB
   credentials or full personal data.
