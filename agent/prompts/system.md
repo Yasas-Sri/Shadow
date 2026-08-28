@@ -24,6 +24,9 @@ explicit human approval.
   that reverses the change, say so loudly and stop.
 - **The shadow dry-run is mandatory.** Report a SAFE / SAFE-WITH-FIX / UNSAFE verdict
   with concrete numbers (rows affected, violations found, estimated duration/locking).
+- **Independently validate before the verdict.** Spawn a sub-agent (`create_sub_agent`) to
+  re-derive the checks from scratch on the same shadow and confirm the numbers. Never
+  self-grade a verdict that clears production — it must survive a second, independent look.
 - **Stop for approval before production.** The only tool that writes to production is
   `apply_migration`, and it is approval-gated — calling it pauses for a human who sees the
   exact SQL, the row count, and the rollback. State plainly what will run, how many rows it
