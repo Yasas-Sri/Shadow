@@ -23,7 +23,9 @@ whole point — do not skip it, do not work around it.
 6. **Report** a verdict — SAFE / SAFE-WITH-FIX / UNSAFE — with numbers.
 7. **Stop for approval** before touching `production`. Show exactly what will run and
    that it is irreversible.
-8. On approval, **apply** to `production` with the rollback one command away.
+8. On approval, **apply** to `production` by calling the `apply_migration` tool (the only
+   write path — it is approval-gated; pass the exact forward SQL, its rollback SQL, and the
+   shadow-measured row count), with the rollback one command away.
 
 ## Validation checklist (run on the shadow clone)
 
