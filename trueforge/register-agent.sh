@@ -41,20 +41,26 @@ const spec = {
   },
 };
 
+const post = () => fetch(`${base}/api/v1/agents`, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec),
+});
+
 async function main() {
-  // Idempotent: drop an existing "shadow" agent so re-runs don't 409.
-  const list = await fetch(`${base}/api/v1/agents`).then((r) => r.json()).catch(() => ({}));
-  const existing = (list.data || []).find((a) => a.name === "shadow");
-  if (existing) {
-    await fetch(`${base}/api/v1/agents/${existing.id}`, { method: "DELETE" });
-    console.error(`deleted existing shadow agent (${existing.id})`);
+  // Never delete the working agent until we know the new spec is acceptable. POST validates
+  // the manifest BEFORE the name-conflict check (422 = bad spec, 409 = valid-but-exists), so
+  // we only replace on a 409 — a 422 leaves the existing agent untouched.
+  let res = await post();
+  if (res.status === 409) {
+    const list = await fetch(`${base}/api/v1/agents`).then((r) => r.json()).catch(() => ({}));
+    const existing = (list.data || []).find((a) => a.name === "shadow");
+    if (existing) {
+      const del = await fetch(`${base}/api/v1/agents/${existing.id}`, { method: "DELETE" });
+      if (!del.ok) { console.error(`FAILED to delete existing agent (${del.status}); left in place`); process.exit(1); }
+      console.error(`replaced existing shadow agent (${existing.id})`);
+    }
+    res = await post();
   }
-  const res = await fetch(`${base}/api/v1/agents`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(spec),
-  });
-  const out = await res.json();
+  const out = await res.json().catch(() => ({}));
   if (!res.ok) { console.error(`FAILED (${res.status}):`, JSON.stringify(out)); process.exit(1); }
   console.log(`registered SHADOW agent (id ${out.data?.id}) — model ${model}`);
   console.log("approval gate: apply_migration requires human approval before it touches production");

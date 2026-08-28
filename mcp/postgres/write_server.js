@@ -18,11 +18,20 @@ const { StreamableHTTPServerTransport } = require("@modelcontextprotocol/sdk/ser
 
 const DB_URL = process.env.SHADOW_DATABASE_URL || "postgres://shadow:shadow@localhost:5432/production";
 const PORT = Number(process.env.MCP_WRITE_PORT || 8001);
+// Shared secret the harness sends as `Authorization: Bearer <token>` (registered via
+// register-write.sh's auth.header). Without it, the approval gate would live only in the
+// AgentSpec while the write tool sat open on a port — so serving without it is refused.
+const TOKEN = process.env.MCP_WRITE_TOKEN || "";
+const MAX_BODY = 256 * 1024; // ponytail: a migration request is tiny; 256KB is already generous
 
 const pool = new Pool({ connectionString: DB_URL, max: 2 });
 
-// Apply forward_sql to production in ONE transaction (Postgres DDL is transactional): any
-// error rolls the whole thing back, so a multi-statement migration never half-applies.
+// Apply forward_sql to production in ONE transaction (Postgres DDL is transactional): a
+// migration whose statements all fail-and-throw rolls back whole, so it never half-applies.
+// ponytail: this is NOT a sandbox for arbitrary SQL — if the migration itself issues COMMIT/
+// ROLLBACK it can end this transaction early, and sequence bumps (nextval/setval) aren't
+// undone by rollback. That's acceptable because the SQL is agent-authored, human-approved,
+// and only the harness (holding the token) can reach this tool — not an untrusted caller.
 async function applyMigration(forwardSql) {
   const client = await pool.connect();
   try {
@@ -38,7 +47,6 @@ async function applyMigration(forwardSql) {
 }
 
 const text = (o) => ({ content: [{ type: "text", text: typeof o === "string" ? o : JSON.stringify(o, null, 2) }] });
-const errText = (e) => ({ content: [{ type: "text", text: "ERROR: " + (e?.message ?? String(e)) }], isError: true });
 
 function buildServer() {
   const server = new McpServer({ name: "shadow-postgres-write", version: "0.1.0" });
@@ -65,11 +73,14 @@ function buildServer() {
         summary,
         rows_affected: estimated_rows,
         rollback_sql,
-        note: "Applied to production. To undo, run the rollback_sql above.",
+        note: "Applied to production in a single transaction. To undo, run the rollback_sql above.",
       });
     } catch (e) {
-      // Nothing committed — production is untouched. Surface the error, not a false success.
-      return errText(e);
+      // The transaction rolled back. Honest caveat: if the migration issued its own COMMIT or
+      // advanced a sequence, that part isn't reverted — so report failure, don't claim untouched.
+      return text({ applied: false, error: e?.message ?? String(e),
+        note: "Migration failed and was rolled back. If it committed early or advanced a sequence, verify state and run rollback_sql if needed.",
+      });
     }
   });
 
@@ -81,8 +92,16 @@ async function handle(req, res) {
   if (req.method === "GET" && path === "/health") { res.writeHead(200).end("ok"); return; }
   if (path !== "/mcp") { res.writeHead(404).end("not found"); return; }
 
+  // The approval gate only means something if nothing but the harness can reach this write
+  // tool. Enforce the shared token at the wire, so a direct caller on this port can't bypass
+  // TrueForge's checkpoint and run production SQL. (Health stays open for liveness probes.)
+  if (req.headers.authorization !== `Bearer ${TOKEN}`) { res.writeHead(401).end("unauthorized"); return; }
+
   let body = "";
-  for await (const chunk of req) body += chunk;
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > MAX_BODY) { res.writeHead(413).end("payload too large"); req.destroy(); return; }
+  }
   let parsed;
   if (body) { try { parsed = JSON.parse(body); } catch { res.writeHead(400).end("bad json"); return; } }
 
@@ -118,6 +137,7 @@ if (require.main === module) {
   if (process.argv.includes("--selfcheck")) {
     selfcheck().catch((e) => { console.error(e.message); process.exit(1); });
   } else {
+    if (!TOKEN) { console.error("refusing to start: set MCP_WRITE_TOKEN (shared secret the harness sends)"); process.exit(1); }
     http.createServer((req, res) =>
       handle(req, res).catch((e) => { try { res.writeHead(500).end(String(e?.message ?? e)); } catch {} })
     ).listen(PORT, () => console.error(`shadow-postgres-write MCP on http://localhost:${PORT}/mcp`));
