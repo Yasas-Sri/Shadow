@@ -1,0 +1,17 @@
+{
+  "name": "shadow",
+  "version": "0.1.0",
+  "description": "SHADOW - an agent that safely runs Postgres migrations via a shadow dry-run in the sandbox.",
+  "license": "MIT",
+  "scripts": {
+    "harness": "trueforge",
+    "mcp": "node mcp/postgres/server.js",
+    "mcp:selfcheck": "node mcp/postgres/server.js --selfcheck"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@truefoundry/trueforge": "^0.1.4",
+    "pg": "^8.23.0",
+    "zod": "^4.4.3"
+  }
+}
