@@ -6,9 +6,11 @@
   "scripts": {
     "harness": "trueforge",
     "mcp": "node mcp/postgres/server.js",
-    "mcp:selfcheck": "node mcp/postgres/server.js --selfcheck"
+    "mcp:selfcheck": "node mcp/postgres/server.js --selfcheck",
+    "clone-shadow": "node agent/scripts/clone_shadow.mjs"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@truefoundry/trueforge": "^0.1.4",
     "pg": "^8.23.0",
