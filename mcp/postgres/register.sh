@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../.."
 TRUEFORGE_URL="${TRUEFORGE_URL:-http://localhost:8790}"
 MCP_URL="${MCP_PUBLIC_URL:-http://localhost:${MCP_PORT:-8000}/mcp}"
 
-curl -fsS -X PUT "${TRUEFORGE_URL}/api/v1/mcp-servers" \
+curl -fsS -X PUT "${TRUEFORGE_URL}/api/v1/settings/mcp-servers" \
   -H 'Content-Type: application/json' \
   -d "{\"manifest\":{\"type\":\"remote\",\"name\":\"postgres\",\"url\":\"${MCP_URL}\",\"description\":\"Read-only Postgres schema introspection and queries for SHADOW.\"}}"
 echo
