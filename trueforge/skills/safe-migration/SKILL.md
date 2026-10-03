@@ -20,10 +20,16 @@ whole point — do not skip it, do not work around it.
    write a rollback that reverses the forward change, say so loudly and stop.
 4. **Clone** `production` → `shadow` (in the sandbox).
 5. **Dry-run** the forward migration on `shadow`, then run the validations below.
-6. **Report** a verdict — SAFE / SAFE-WITH-FIX / UNSAFE — with numbers.
-7. **Stop for approval** before touching `production`. Show exactly what will run and
+6. **Independently validate** — before you commit to a verdict, spawn a sub-agent with the
+   `create_sub_agent` tool and ask it to re-derive the result *from scratch* on the same
+   shadow: re-run the constraint-violation queries, confirm the counts, and check the fix.
+   Don't self-grade — a `SAFE`/`SAFE-WITH-FIX` verdict must be one the second agent reaches
+   too. If it disagrees, reconcile before proceeding (usually the stricter reading wins).
+7. **Report** a verdict — SAFE / SAFE-WITH-FIX / UNSAFE — with numbers, noting the
+   independent check agreed.
+8. **Stop for approval** before touching `production`. Show exactly what will run and
    that it is irreversible.
-8. On approval, **apply** to `production` by calling the `apply_migration` tool (the only
+9. On approval, **apply** to `production` by calling the `apply_migration` tool (the only
    write path — it is approval-gated; pass the exact forward SQL, its rollback SQL, and the
    shadow-measured row count), with the rollback one command away.
 
